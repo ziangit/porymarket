@@ -32,5 +32,9 @@ Thumbs.db
 *.db-journal
 data/
 
+# Allow images folder
+!images/
+!images/**
+
 # Docker
 docker-compose.override.yml

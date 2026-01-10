@@ -2,7 +2,7 @@
 
 Real-time monitoring system to detect potential insider trading on Polymarket by analyzing suspicious trading patterns.
 
-![Dashboard](https://via.placeholder.com/800x400?text=Dashboard+Screenshot)
+![Dashboard Screenshot](./images/dashboard.png)
 
 ## 🌟 Features
 
@@ -16,15 +16,24 @@ Real-time monitoring system to detect potential insider trading on Polymarket by
   - Significant trade sizes (> $1,000)
   - Quick action after wallet creation
 
+## 📸 Screenshots
+
+### Main Dashboard
+
+![Main Dashboard](./images/dashboard.png)
+_Real-time insider alerts with detailed trade information and radar scores_
+
 ## 🛠 Tech Stack
 
 **Backend:**
+
 - NestJS
 - MySQL with Prisma ORM
 - Docker & Docker Compose
 - TypeScript
 
 **Frontend:**
+
 - React with Vite
 - Axios for API calls
 - Modern CSS styling
@@ -40,17 +49,20 @@ Real-time monitoring system to detect potential insider trading on Polymarket by
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/yourusername/polymarket-insider-hunter.git
    cd polymarket-insider-hunter
    ```
 
 2. **Start MySQL with Docker**
+
    ```bash
    docker-compose up -d mysql
    ```
 
 3. **Setup Backend**
+
    ```bash
    cd backend
    npm install
@@ -62,6 +74,7 @@ Real-time monitoring system to detect potential insider trading on Polymarket by
    ```
 
 4. **Setup Frontend**
+
    ```bash
    cd frontend
    npm install
@@ -96,12 +109,12 @@ GAMMA_API_URL=https://gamma-api.polymarket.com
 
 The system scores wallets based on:
 
-| Criteria | Score | Threshold |
-|----------|-------|-----------|
-| Wallet Age < 24h | +30 | < 86,400 seconds |
-| Total Markets < 3 | +25 | < 3 markets |
-| Trade Size > $10k | +25 | > $10,000 |
-| Quick Action | +20 | < 20% of wallet lifetime |
+| Criteria          | Score | Threshold                |
+| ----------------- | ----- | ------------------------ |
+| Wallet Age < 24h  | +30   | < 86,400 seconds         |
+| Total Markets < 3 | +25   | < 3 markets              |
+| Trade Size > $10k | +25   | > $10,000                |
+| Quick Action      | +20   | < 20% of wallet lifetime |
 
 **Insider Alert**: Score ≥ 50% + Fresh wallet + Low market count
 
@@ -112,23 +125,27 @@ docker-compose up -d
 ```
 
 This starts:
+
 - MySQL database on port 3307
 - Backend API on port 3001
 
 ## 🧪 Development
 
 ### Run Prisma Studio
+
 ```bash
 cd backend
 npx prisma studio
 ```
 
 ### Manual Scan Trigger
+
 ```bash
 curl -X POST http://localhost:3001/api/monitoring/scan
 ```
 
 ### Check Logs
+
 ```bash
 # Backend logs
 cd backend
