@@ -51,8 +51,8 @@ _Real-time insider alerts with detailed trade information and radar scores_
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/polymarket-insider-hunter.git
-   cd polymarket-insider-hunter
+   git clone https://github.com/ziangit/porymarket.git
+   cd porymarket
    ```
 
 2. **Start MySQL with Docker**
