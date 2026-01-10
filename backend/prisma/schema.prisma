@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Alert {
+  id              Int      @id @default(autoincrement())
+  walletAddress   String   @map("wallet_address")
+  walletName      String?  @map("wallet_name")
+  marketId        String   @map("market_id")
+  marketQuestion  String   @map("market_question") @db.Text
+  tradeSize       Decimal  @map("trade_size") @db.Decimal(20, 2)
+  outcome         String?
+  price           Decimal? @db.Decimal(10, 6)
+  walletAge       Int      @map("wallet_age")
+  totalMarkets    Int      @map("total_markets")
+  radarScore      Decimal  @map("radar_score") @db.Decimal(5, 2)
+  wcTxRatio       Decimal  @map("wc_tx_ratio") @db.Decimal(5, 4)
+  timestamp       BigInt
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  simulations Simulation[]
+
+  @@index([timestamp])
+  @@index([walletAddress])
+  @@map("alerts")
+}
+
+model Trade {
+  id            Int      @id @default(autoincrement())
+  walletAddress String   @map("wallet_address")
+  marketId      String   @map("market_id")
+  size          Decimal  @db.Decimal(20, 2)
+  price         Decimal? @db.Decimal(10, 6)
+  outcome       String?
+  timestamp     BigInt
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([walletAddress])
+  @@index([marketId])
+  @@map("trades")
+}
+
+model Simulation {
+  id          Int       @id @default(autoincrement())
+  alertId     Int       @map("alert_id")
+  entryPrice  Decimal   @map("entry_price") @db.Decimal(10, 6)
+  entryAmount Decimal   @map("entry_amount") @db.Decimal(20, 2)
+  exitPrice   Decimal?  @map("exit_price") @db.Decimal(10, 6)
+  exitAmount  Decimal?  @map("exit_amount") @db.Decimal(20, 2)
+  status      String    @default("open")
+  pnl         Decimal?  @db.Decimal(20, 2)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  closedAt    DateTime? @map("closed_at")
+
+  alert Alert @relation(fields: [alertId], references: [id])
+
+  @@index([status])
+  @@map("simulations")
+}

@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: polymarket_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: polymarket
+      MYSQL_USER: polymarket_user
+      MYSQL_PASSWORD: polymarket_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - polymarket_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: polymarket_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=mysql://polymarket_user:polymarket_pass@mysql:3306/polymarket
+      - GAMMA_API_URL=https://gamma-api.polymarket.com
+      - POLYMARKET_API_URL=https://clob.polymarket.com
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - polymarket_network
+
+volumes:
+  mysql_data:
+
+networks:
+  polymarket_network:
+    driver: bridge
