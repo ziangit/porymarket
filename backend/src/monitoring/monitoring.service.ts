@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 export class MonitoringService {
   private readonly logger = new Logger(MonitoringService.name);
   private readonly gammaApi: string;
+  private readonly minTradeSize: number;
 
   constructor(
     private alertsService: AlertsService,
@@ -16,6 +17,9 @@ export class MonitoringService {
     private configService: ConfigService
   ) {
     this.gammaApi = this.configService.get<string>("GAMMA_API_URL");
+    // Used to avoid classifying tiny fills as "insider" noise.
+    // Defaults to 1000 to match the repo's env example.
+    this.minTradeSize = this.configService.get<number>("MIN_TRADE_SIZE") ?? 1000;
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -52,16 +56,13 @@ export class MonitoringService {
 
   private async scanMarketTrades(market: any, event: any) {
     try {
-      let tokenIds = market.clobTokenIds || [];
-
-      if (typeof tokenIds === "string") {
-        try {
-          tokenIds = JSON.parse(tokenIds);
-        } catch {
-          tokenIds = [tokenIds];
-        }
-      } else if (!Array.isArray(tokenIds)) {
-        tokenIds = Object.values(tokenIds);
+      // Gamma's event markets include `conditionId` which maps to the Data API `market` filter.
+      const conditionId: string | undefined = market?.conditionId;
+      if (!conditionId) {
+        this.logger.warn(
+          `Skipping market scan because market.conditionId is missing (market: ${market?.slug || market?.id || market?.question || "unknown"})`
+        );
+        return;
       }
 
       let parsedOutcomes = ["Yes", "No"];
@@ -77,46 +78,23 @@ export class MonitoringService {
         }
       }
 
-      for (const tokenId of tokenIds) {
-        if (!tokenId) continue;
+      const response = await axios.get(`https://data-api.polymarket.com/trades`, {
+        params: {
+          limit: 50,
+          // Data API expects `market` = conditionId(s)
+          market: [conditionId],
+          takerOnly: true,
+        },
+        timeout: 10000,
+      });
 
-        try {
-          const response = await axios.get(
-            `https://clob.polymarket.com/trades`,
-            {
-              params: { token_id: tokenId, limit: 50 },
-              timeout: 5000,
-            }
-          );
+      const trades = response.data || [];
+      this.logger.log(
+        `Got ${trades.length} trades for market: ${market.question?.substring(0, 40)}...`
+      );
 
-          const trades = response.data || [];
-          this.logger.log(
-            `Got ${
-              trades.length
-            } trades for market: ${market.question?.substring(0, 40)}...`
-          );
-
-          for (const trade of trades) {
-            await this.analyzeTrade(trade, market, event, parsedOutcomes);
-          }
-        } catch (err) {
-          if (err.response?.status === 401) {
-            this.logger.warn(
-              `❌ Auth required for token ${tokenId}. CLOB API requires authentication. Skipping this market.`
-            );
-            this.logger.warn(`To get real trade data, you need to:`);
-            this.logger.warn(
-              `1. Register as a builder at polymarket.com/settings?tab=builder`
-            );
-            this.logger.warn(`2. Generate API credentials`);
-            this.logger.warn(`3. Add them to .env file`);
-            // Remove synthetic trade generation
-          } else {
-            this.logger.error(
-              `Error fetching trades for token ${tokenId}: ${err.message}`
-            );
-          }
-        }
+      for (const trade of trades) {
+        await this.analyzeTrade(trade, market, event, parsedOutcomes);
       }
     } catch (error) {
       this.logger.error(`Error scanning market: ${error.message}`);
@@ -129,19 +107,30 @@ export class MonitoringService {
     event: any,
     parsedOutcomes?: string[]
   ) {
-    const walletAddress = trade.maker_address || trade.taker_address;
+    // CLOB trades: maker_address/taker_address
+    // Data API trades: proxyWallet
+    const walletAddress =
+      trade.proxyWallet || trade.maker_address || trade.taker_address;
     if (!walletAddress) return;
 
     let outcomes = parsedOutcomes || ["Yes", "No"];
+    // Data API returns human-readable outcome (e.g. "Up"/"Down" or "Yes"/"No")
+    // CLOB may have a different shape, so we keep a fallback.
     const outcomeValue = trade.outcome || outcomes[0] || "Yes";
+
+    const marketId =
+      trade.conditionId ||
+      market.conditionId ||
+      market.id ||
+      market.slug;
 
     await this.prisma.trade
       .create({
         data: {
           walletAddress,
-          marketId: market.id || market.slug,
+          marketId,
           size: parseFloat(trade.size || 0),
-          price: trade.price ? parseFloat(trade.price) : null,
+          price: trade.price !== undefined && trade.price !== null ? parseFloat(trade.price) : null,
           outcome: outcomeValue,
           timestamp: BigInt(trade.timestamp || Math.floor(Date.now() / 1000)),
         },
@@ -163,11 +152,14 @@ export class MonitoringService {
 
       await this.alertsService.create({
         walletAddress,
-        marketId: market.id || market.slug,
+        marketId,
         marketQuestion: market.question || event.title,
         tradeSize: parseFloat(trade.size || 0),
         outcome: outcomeValue,
-        price: trade.price ? parseFloat(trade.price) : null,
+        price:
+          trade.price !== undefined && trade.price !== null
+            ? parseFloat(trade.price)
+            : null,
         walletAge: analysis.walletAge,
         totalMarkets: walletStats.totalMarkets,
         radarScore: analysis.radarScore,
@@ -213,7 +205,13 @@ export class MonitoringService {
     if (wcTxRatio < 0.2 && walletAge > 0) score += 20;
 
     const radarScore = Math.min(score, 100);
-    const isInsider = walletAge < 86400 && totalMarkets < 3 && radarScore >= 50;
+    // Require minimum trade size to qualify as an insider.
+    // This prevents tiny $1 fills from being treated as signals.
+    const isInsider =
+      tradeSize > this.minTradeSize &&
+      walletAge < 86400 &&
+      totalMarkets < 3 &&
+      radarScore >= 50;
 
     return {
       isInsider,

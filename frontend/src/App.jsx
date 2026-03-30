@@ -14,7 +14,9 @@ function App() {
   const [filters, setFilters] = useState({
     hideClosedMarkets: true,
     hideSoldPositions: false,
-    minSize: 0,
+    // Default to a harsher minimum trade size.
+    // This matches the insider scoring threshold (>= 1000) and prevents noise.
+    minSize: 1000,
     minRadarScore: 50,
   });
 

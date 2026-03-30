@@ -7,12 +7,15 @@ export class MarketsService {
   private readonly logger = new Logger(MarketsService.name);
   private readonly gammaApi: string;
   private readonly clobApi: string;
+  private readonly dataApi: string;
 
   constructor(private configService: ConfigService) {
     this.gammaApi = this.configService.get<string>("GAMMA_API_URL");
     this.clobApi = "https://clob.polymarket.com";
+    this.dataApi = "https://data-api.polymarket.com";
     this.logger.log(`Gamma API URL: ${this.gammaApi}`);
     this.logger.log(`CLOB API URL: ${this.clobApi}`);
+    this.logger.log(`Data API URL: ${this.dataApi}`);
   }
 
   async getMarkets(limit: number = 100) {
@@ -31,10 +34,7 @@ export class MarketsService {
     try {
       this.logger.log("=== Starting getRecentTrades ===");
 
-      const url = `${this.gammaApi}/events`;
-      this.logger.log(`Fetching active events: ${url}`);
-
-      const eventsResponse = await axios.get(url, {
+      const eventsResponse = await axios.get(`${this.gammaApi}/events`, {
         params: {
           active: true,
           closed: false,
@@ -58,73 +58,36 @@ export class MarketsService {
         this.logger.log(`   Markets: ${markets.length}`);
 
         for (const market of markets.slice(0, 2)) {
-          let tokenIds = market.clobTokenIds || [];
-
-          if (typeof tokenIds === "string") {
-            try {
-              tokenIds = JSON.parse(tokenIds);
-            } catch {
-              tokenIds = [tokenIds];
-            }
-          } else if (!Array.isArray(tokenIds)) {
-            tokenIds = Object.values(tokenIds);
-          }
+          const conditionId: string | undefined = market?.conditionId;
+          if (!conditionId) continue;
 
           this.logger.log(`   Market: ${market.question?.substring(0, 40)}...`);
 
-          for (const tokenId of tokenIds) {
-            if (!tokenId) continue;
+          const tradesResponse = await axios.get(`${this.dataApi}/trades`, {
+            params: {
+              limit: 10,
+              market: [conditionId],
+              takerOnly: true,
+            },
+            timeout: 10000,
+          });
 
-            try {
-              this.logger.log(`      Fetching trades for token ${tokenId}...`);
+          const trades = tradesResponse.data || [];
+          this.logger.log(`      ✅ ${trades.length} trades`);
 
-              // Try without authentication first
-              const tradesResponse = await axios.get(`${this.clobApi}/trades`, {
-                params: { token_id: tokenId, limit: 10 },
-                headers: {
-                  Accept: "application/json",
-                },
-                timeout: 5000,
-              });
-
-              const trades = tradesResponse.data || [];
-              this.logger.log(`      ✅ ${trades.length} trades`);
-
-              if (trades.length > 0) {
-                allTrades.push(
-                  ...trades.map((trade) => ({
-                    ...trade,
-                    tokenId,
-                    marketQuestion: market.question,
-                    eventTitle: event.title,
-                    outcomes: market.outcomes,
-                    marketSlug: market.slug,
-                  }))
-                );
-              }
-            } catch (err) {
-              if (err.response?.status === 401) {
-                this.logger.warn(
-                  `      ⚠️ Token ${tokenId}: Auth required, skipping`
-                );
-              } else {
-                this.logger.error(`      ❌ Token ${tokenId}: ${err.message}`);
-              }
-
-              // Fallback: create mock trade data from market info for display
-              const mockTrade = {
-                tokenId,
-                marketQuestion: market.question,
-                eventTitle: event.title,
-                outcomes: market.outcomes,
-                marketSlug: market.slug,
-                price: market.outcomePrices?.[0] || 0,
-                timestamp: Date.now() / 1000,
-                isMock: true,
-              };
-              allTrades.push(mockTrade);
-            }
-          }
+          allTrades.push(
+            ...trades.map((trade) => ({
+              ...trade,
+              // Keep some names expected by older UI code.
+              maker_address: trade.proxyWallet,
+              taker_address: trade.proxyWallet,
+              tokenId: trade.asset,
+              marketQuestion: market.question,
+              eventTitle: event.title,
+              outcomes: market.outcomes,
+              marketSlug: market.slug,
+            }))
+          );
         }
       }
 
@@ -144,8 +107,23 @@ export class MarketsService {
   }
 
   async getMarketTrades(id: string, limit: number = 100) {
-    const response = await axios.get(`${this.gammaApi}/markets/${id}/trades`, {
-      params: { limit },
+    // Data API `market` expects Gamma's `conditionId` (0x...64 hex).
+    const isConditionId = /^0x[a-fA-F0-9]{64}$/.test(id);
+
+    let conditionId: string | undefined = id;
+    if (!isConditionId) {
+      const market = await axios.get(`${this.gammaApi}/markets/${id}`);
+      conditionId = market.data?.conditionId;
+    }
+
+    if (!conditionId) return [];
+
+    const response = await axios.get(`${this.dataApi}/trades`, {
+      params: {
+        limit,
+        market: [conditionId],
+        takerOnly: true,
+      },
     });
     return response.data;
   }
