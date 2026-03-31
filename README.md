@@ -14,6 +14,8 @@ Real-time monitoring system to detect potential insider trading on Polymarket by
   - Fresh wallets (< 24 hours old)
   - Low market participation (< 3 markets)
   - Significant trade sizes (> $1,000)
+  - wc/tx ratio under 20% (quick action after wallet creation)
+  - Trade occurred within the last 5 hours
   - Quick action after wallet creation
 
 ## 📸 Screenshots
@@ -116,12 +118,12 @@ The system scores wallets based on:
 | Trade Size > $10k | +25   | > $10,000                |
 | Quick Action      | +20   | < 20% of wallet lifetime |
 
-**Insider Alert**: Score ≥ 50% + Fresh wallet + Low market count
+**Insider Alert**: All criteria must pass — Score ≥ 50% + Wallet age < 24h + Markets < 3 + Trade size > $1,000 + wc/tx < 20% + Trade within last 5 hours
 
 ## 🐳 Docker Deployment
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 This starts:

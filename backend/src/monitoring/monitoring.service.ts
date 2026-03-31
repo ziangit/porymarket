@@ -9,7 +9,6 @@ import { PrismaService } from "../prisma/prisma.service";
 export class MonitoringService {
   private readonly logger = new Logger(MonitoringService.name);
   private readonly gammaApi: string;
-  private readonly minTradeSize: number;
 
   constructor(
     private alertsService: AlertsService,
@@ -17,9 +16,6 @@ export class MonitoringService {
     private configService: ConfigService
   ) {
     this.gammaApi = this.configService.get<string>("GAMMA_API_URL");
-    // Used to avoid classifying tiny fills as "insider" noise.
-    // Defaults to 1000 to match the repo's env example.
-    this.minTradeSize = this.configService.get<number>("MIN_TRADE_SIZE") ?? 1000;
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -191,6 +187,7 @@ export class MonitoringService {
     const walletAge = walletStats.firstTrade ? now - walletStats.firstTrade : 0;
     const tradeSize = parseFloat(trade.size || 0);
     const totalMarkets = walletStats.totalMarkets || 0;
+    const timeSinceTrade = now - Number(trade.timestamp || now);
 
     const wcTxRatio =
       walletAge > 0 ? (now - walletStats.firstTrade) / walletAge : 0;
@@ -205,13 +202,13 @@ export class MonitoringService {
     if (wcTxRatio < 0.2 && walletAge > 0) score += 20;
 
     const radarScore = Math.min(score, 100);
-    // Require minimum trade size to qualify as an insider.
-    // This prevents tiny $1 fills from being treated as signals.
     const isInsider =
-      tradeSize > this.minTradeSize &&
-      walletAge < 86400 &&
-      totalMarkets < 3 &&
-      radarScore >= 50;
+      walletAge < 86400 &&       // wallet age under 1 day
+      totalMarkets < 3 &&        // less than 3 total markets
+      tradeSize > 1000 &&        // size over $1k
+      radarScore >= 50 &&        // radar score above 50%
+      wcTxRatio < 0.2 &&         // wc/tx under 20%
+      timeSinceTrade < 18000;    // less than 5 hours since the trade
 
     return {
       isInsider,
