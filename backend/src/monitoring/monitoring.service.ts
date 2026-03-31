@@ -111,6 +111,9 @@ export class MonitoringService {
       trade.proxyWallet || trade.maker_address || trade.taker_address;
     if (!walletAddress) return;
 
+    const price = trade.price !== undefined && trade.price !== null ? parseFloat(trade.price) : null;
+    if (!price || price <= 0) return;
+
     let outcomes = parsedOutcomes || ["Yes", "No"];
     // Data API returns human-readable outcome (e.g. "Up"/"Down" or "Yes"/"No")
     // CLOB may have a different shape, so we keep a fallback.
@@ -128,7 +131,7 @@ export class MonitoringService {
           walletAddress,
           marketId,
           size: parseFloat(trade.size || 0),
-          price: trade.price !== undefined && trade.price !== null ? parseFloat(trade.price) : null,
+          price,
           outcome: outcomeValue,
           timestamp: BigInt(trade.timestamp || Math.floor(Date.now() / 1000)),
         },
@@ -151,13 +154,11 @@ export class MonitoringService {
       await this.alertsService.create({
         walletAddress,
         marketId,
+        marketSlug: event.slug || market.slug || null,
         marketQuestion: market.question || event.title,
         tradeSize: parseFloat(trade.size || 0),
         outcome: outcomeValue,
-        price:
-          trade.price !== undefined && trade.price !== null
-            ? parseFloat(trade.price)
-            : null,
+        price,
         walletAge: analysis.walletAge,
         totalMarkets: walletStats.totalMarkets,
         radarScore: analysis.radarScore,

@@ -120,13 +120,32 @@ function InsiderTable({ alerts }) {
                     >
                       {parseOutcome(alert)}
                     </span>
+                    {alert.price != null && (
+                      <span className="bet-prob">
+                        {(() => {
+                          const pct = Number(alert.price) * 100;
+                          if (pct === 0) return "?%";
+                          if (pct < 1) return `${pct.toFixed(2)}%`;
+                          return `${pct.toFixed(0)}%`;
+                        })()}
+                      </span>
+                    )}
                   </td>
                   <td className="market-cell">
                     <div className="market-info">
                       <span className="market-icon">🗳️</span>
-                      <span className="market-question">
-                        {alert.marketQuestion}
-                      </span>
+                      {alert.marketSlug ? (
+                        <a
+                          href={`https://polymarket.com/event/${alert.marketSlug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="market-question market-link"
+                        >
+                          {alert.marketQuestion}
+                        </a>
+                      ) : (
+                        <span className="market-question">{alert.marketQuestion}</span>
+                      )}
                     </div>
                   </td>
                   <td className="time-cell">{formatTime(alert.timestamp)}</td>

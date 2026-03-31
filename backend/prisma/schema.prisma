@@ -12,6 +12,7 @@ model Alert {
   walletAddress   String   @map("wallet_address")
   walletName      String?  @map("wallet_name")
   marketId        String   @map("market_id")
+  marketSlug      String?  @map("market_slug")
   marketQuestion  String   @map("market_question") @db.Text
   tradeSize       Decimal  @map("trade_size") @db.Decimal(20, 2)
   outcome         String?

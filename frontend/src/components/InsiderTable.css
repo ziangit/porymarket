@@ -117,6 +117,13 @@
   color: #ef4444;
 }
 
+.bet-prob {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  color: #a0aec0;
+}
+
 .market-cell {
   max-width: 400px;
 }
@@ -135,6 +142,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.market-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.market-link:hover {
+  color: #63b3ed;
+  text-decoration: underline;
 }
 
 .time-cell {
