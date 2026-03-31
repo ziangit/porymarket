@@ -9,6 +9,8 @@ import { PrismaService } from "../prisma/prisma.service";
 export class MonitoringService {
   private readonly logger = new Logger(MonitoringService.name);
   private readonly gammaApi: string;
+  // Cache wallet first-trade timestamps to avoid repeated API calls per scan cycle.
+  private readonly walletFirstTradeCache = new Map<string, number>();
 
   constructor(
     private alertsService: AlertsService,
@@ -170,27 +172,57 @@ export class MonitoringService {
   private async getWalletStats(walletAddress: string) {
     const trades = await this.prisma.trade.findMany({
       where: { walletAddress },
-      orderBy: { timestamp: "asc" },
     });
 
     const uniqueMarkets = new Set(trades.map((t) => t.marketId));
+    const firstTrade = await this.getOnChainFirstTrade(walletAddress);
 
     return {
       totalMarkets: uniqueMarkets.size,
       totalTrades: trades.length,
-      firstTrade: trades.length > 0 ? Number(trades[0].timestamp) : null,
+      firstTrade,
     };
+  }
+
+  private async getOnChainFirstTrade(walletAddress: string): Promise<number | null> {
+    if (this.walletFirstTradeCache.has(walletAddress)) {
+      return this.walletFirstTradeCache.get(walletAddress);
+    }
+
+    try {
+      const response = await axios.get(`https://data-api.polymarket.com/trades`, {
+        params: { user: walletAddress, limit: 500 },
+        timeout: 10000,
+      });
+
+      const trades: any[] = response.data || [];
+      if (trades.length === 0) return null;
+
+      const earliest = trades.reduce((min, t) =>
+        Number(t.timestamp) < min ? Number(t.timestamp) : min,
+        Number(trades[0].timestamp)
+      );
+
+      this.walletFirstTradeCache.set(walletAddress, earliest);
+      return earliest;
+    } catch (error) {
+      this.logger.warn(`Failed to fetch on-chain trades for ${walletAddress.slice(0, 10)}: ${error.message}`);
+      return null;
+    }
   }
 
   private analyzeWallet(trade: any, walletStats: any) {
     const now = Math.floor(Date.now() / 1000);
+    const tradeTimestamp = Number(trade.timestamp || now);
     const walletAge = walletStats.firstTrade ? now - walletStats.firstTrade : 0;
     const tradeSize = parseFloat(trade.size || 0);
     const totalMarkets = walletStats.totalMarkets || 0;
-    const timeSinceTrade = now - Number(trade.timestamp || now);
-
+    // wc/tx = (time of this trade - first known trade) / wallet age.
+    // A low ratio (~0) means this trade happened right at the start of the wallet's history — suspicious.
     const wcTxRatio =
-      walletAge > 0 ? (now - walletStats.firstTrade) / walletAge : 0;
+      walletStats.firstTrade && walletAge > 0
+        ? (tradeTimestamp - walletStats.firstTrade) / walletAge
+        : 0;
 
     let score = 0;
 
@@ -202,13 +234,8 @@ export class MonitoringService {
     if (wcTxRatio < 0.2 && walletAge > 0) score += 20;
 
     const radarScore = Math.min(score, 100);
-    const isInsider =
-      walletAge < 86400 &&       // wallet age under 1 day
-      totalMarkets < 3 &&        // less than 3 total markets
-      tradeSize > 1000 &&        // size over $1k
-      radarScore >= 50 &&        // radar score above 50%
-      wcTxRatio < 0.2 &&         // wc/tx under 20%
-      timeSinceTrade < 18000;    // less than 5 hours since the trade
+    // Store any alert with a minimum signal so the frontend can apply strict/loose filtering.
+    const isInsider = radarScore >= 30 && tradeSize > 100;
 
     return {
       isInsider,

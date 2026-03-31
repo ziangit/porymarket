@@ -32,6 +32,40 @@
   color: white;
 }
 
+.filter-center {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filter-label {
+  color: #a0aec0;
+  font-size: 0.875rem;
+  margin-right: 0.25rem;
+}
+
+.size-btn {
+  padding: 0.3rem 0.7rem;
+  background: transparent;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  color: #a0aec0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.size-btn:hover {
+  border-color: #4a5568;
+  color: white;
+}
+
+.size-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+
 .filter-right {
   display: flex;
   gap: 2rem;

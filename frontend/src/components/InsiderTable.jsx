@@ -29,6 +29,14 @@ function InsiderTable({ alerts }) {
     return `$${value.toFixed(0)}`;
   };
 
+  const formatWalletAge = (walletAge) => {
+    if (!walletAge) return "-";
+    const hours = Math.floor(walletAge / 3600);
+    if (hours < 1) return `${Math.floor(walletAge / 60)}m`;
+    if (hours < 24) return `${hours}h`;
+    return `${Math.floor(hours / 24)}d`;
+  };
+
   const getScoreColor = (score) => {
     if (score >= 80) return "#ef4444";
     if (score >= 60) return "#f59e0b";
@@ -84,8 +92,8 @@ function InsiderTable({ alerts }) {
                 <th>Avg</th>
                 <th>Market Trades</th>
                 <th>Market Volume</th>
-                <th>Volume Conc.</th>
-                <th>Market PnL</th>
+                <th>Wallet Age</th>
+                <th>wc/tx</th>
                 <th>Radar Score</th>
               </tr>
             </thead>
@@ -136,14 +144,13 @@ function InsiderTable({ alerts }) {
                     {formatCurrency(Number(alert.tradeSize))}
                   </td>
                   <td className="conc-cell">
-                    {(
-                      (Number(alert.tradeSize) /
-                        (Number(alert.tradeSize) + 10000)) *
-                      100
-                    ).toFixed(1)}
-                    %
+                    {formatWalletAge(alert.walletAge)}
                   </td>
-                  <td className="pnl-cell">-</td>
+                  <td className="pnl-cell">
+                    {alert.wcTxRatio != null
+                      ? `${(Number(alert.wcTxRatio) * 100).toFixed(1)}%`
+                      : "-"}
+                  </td>
                   <td className="score-cell">
                     <span
                       className="score-badge"

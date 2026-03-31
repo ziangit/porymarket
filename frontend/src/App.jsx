@@ -11,11 +11,10 @@ function App() {
   const [alerts, setAlerts] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [strictMode, setStrictMode] = useState(false);
   const [filters, setFilters] = useState({
     hideClosedMarkets: true,
     hideSoldPositions: false,
-    // Default to a harsher minimum trade size.
-    // This matches the insider scoring threshold (>= 1000) and prevents noise.
     minSize: 1000,
     minRadarScore: 50,
   });
@@ -49,9 +48,20 @@ function App() {
   };
 
   const filteredAlerts = alerts.filter((alert) => {
-    if (filters.minSize && alert.tradeSize < filters.minSize) return false;
-    if (filters.minRadarScore && alert.radarScore < filters.minRadarScore)
-      return false;
+    if (filters.minSize && Number(alert.tradeSize) < filters.minSize) return false;
+    if (filters.minRadarScore && Number(alert.radarScore) < filters.minRadarScore) return false;
+
+    if (strictMode) {
+      const now = Date.now() / 1000;
+      const timeSinceTrade = now - Number(alert.timestamp);
+      if (Number(alert.walletAge) >= 86400) return false;       // wallet age under 1 day
+      if (Number(alert.totalMarkets) >= 3) return false;        // less than 3 markets
+      if (Number(alert.tradeSize) <= 1000) return false;        // size over $1k
+      if (Number(alert.radarScore) < 50) return false;          // radar score above 50%
+      if (Number(alert.wcTxRatio) >= 0.2) return false;         // wc/tx under 20%
+      if (timeSinceTrade >= 18000) return false;                 // within last 5 hours
+    }
+
     return true;
   });
 
@@ -67,6 +77,12 @@ function App() {
             Insiders typically don't leave a large paper trail. Use this tool to
             track significant trades from rookie wallets.
           </p>
+          <button
+            className={`strict-mode-btn ${strictMode ? "active" : ""}`}
+            onClick={() => setStrictMode((v) => !v)}
+          >
+            {strictMode ? "🔒 Strict Mode" : "🔓 Loose Mode"}
+          </button>
         </div>
       </header>
 

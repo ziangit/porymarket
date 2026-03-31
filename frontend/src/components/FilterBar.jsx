@@ -9,6 +9,19 @@ function FilterBar({ filters, setFilters }) {
         <button className="filter-btn">🎛️ All Filters</button>
       </div>
 
+      <div className="filter-center">
+        <span className="filter-label">Min Size</span>
+        {[0, 100, 500, 1000, 5000, 10000].map((size) => (
+          <button
+            key={size}
+            className={`size-btn ${filters.minSize === size ? "active" : ""}`}
+            onClick={() => setFilters({ ...filters, minSize: size })}
+          >
+            {size === 0 ? "All" : `$${size >= 1000 ? `${size / 1000}K` : size}`}
+          </button>
+        ))}
+      </div>
+
       <div className="filter-right">
         <div className="filter-toggle">
           <span className="filter-badge">New</span>

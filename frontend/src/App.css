@@ -62,6 +62,24 @@
   line-height: 1.6;
 }
 
+.strict-mode-btn {
+  margin-top: 1rem;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  border: 1px solid #4a5568;
+  background: transparent;
+  color: #a0aec0;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.strict-mode-btn.active {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .App-main {
   max-width: 1400px;
   margin: 0 auto;
