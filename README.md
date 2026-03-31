@@ -120,6 +120,12 @@ The system scores wallets based on:
 
 **Insider Alert**: All criteria must pass — Score ≥ 50% + Wallet age < 24h + Markets < 3 + Trade size > $1,000 + wc/tx < 20% + Trade within last 5 hours
 
+## 🔍 Scan Scope
+
+Each cycle scans the top **10 events × 2 markets = 20 markets** per minute.
+
+The Gamma API returns events sorted by **volume descending** by default, so these 20 markets represent the highest-volume events on Polymarket. Insider activity is most likely to occur in high-volume, high-attention markets, so scanning beyond the top 20 yields diminishing returns while significantly increasing API call volume and scan time.
+
 ## 🐳 Docker Deployment
 
 ```bash
