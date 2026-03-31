@@ -11,6 +11,8 @@ export class MonitoringService {
   private readonly gammaApi: string;
   // Cache wallet first-trade timestamps to avoid repeated API calls per scan cycle.
   private readonly walletFirstTradeCache = new Map<string, number>();
+  // Deduplicate concurrent in-flight requests for the same wallet.
+  private readonly walletFirstTradePending = new Map<string, Promise<number | null>>();
 
   constructor(
     private alertsService: AlertsService,
@@ -173,10 +175,14 @@ export class MonitoringService {
   private async getWalletStats(walletAddress: string) {
     const trades = await this.prisma.trade.findMany({
       where: { walletAddress },
+      orderBy: { timestamp: "asc" },
     });
 
     const uniqueMarkets = new Set(trades.map((t) => t.marketId));
-    const firstTrade = await this.getOnChainFirstTrade(walletAddress);
+    const onChainFirst = await this.getOnChainFirstTrade(walletAddress);
+    // Fall back to local DB first trade if on-chain fetch failed.
+    const dbFirst = trades.length > 0 ? Number(trades[0].timestamp) : null;
+    const firstTrade = onChainFirst ?? dbFirst;
 
     return {
       totalMarkets: uniqueMarkets.size,
@@ -190,26 +196,35 @@ export class MonitoringService {
       return this.walletFirstTradeCache.get(walletAddress);
     }
 
-    try {
-      const response = await axios.get(`https://data-api.polymarket.com/trades`, {
+    // Return existing in-flight request if one is already running for this wallet.
+    if (this.walletFirstTradePending.has(walletAddress)) {
+      return this.walletFirstTradePending.get(walletAddress);
+    }
+
+    const request = axios.get(`https://data-api.polymarket.com/trades`, {
         params: { user: walletAddress, limit: 500 },
         timeout: 10000,
+      })
+      .then((response) => {
+        const trades: any[] = response.data || [];
+        if (trades.length === 0) return null;
+        const earliest = trades.reduce((min, t) =>
+          Number(t.timestamp) < min ? Number(t.timestamp) : min,
+          Number(trades[0].timestamp)
+        );
+        this.walletFirstTradeCache.set(walletAddress, earliest);
+        return earliest;
+      })
+      .catch((error) => {
+        this.logger.warn(`Failed to fetch on-chain trades for ${walletAddress.slice(0, 10)}: ${error.message}`);
+        return null;
+      })
+      .finally(() => {
+        this.walletFirstTradePending.delete(walletAddress);
       });
 
-      const trades: any[] = response.data || [];
-      if (trades.length === 0) return null;
-
-      const earliest = trades.reduce((min, t) =>
-        Number(t.timestamp) < min ? Number(t.timestamp) : min,
-        Number(trades[0].timestamp)
-      );
-
-      this.walletFirstTradeCache.set(walletAddress, earliest);
-      return earliest;
-    } catch (error) {
-      this.logger.warn(`Failed to fetch on-chain trades for ${walletAddress.slice(0, 10)}: ${error.message}`);
-      return null;
-    }
+    this.walletFirstTradePending.set(walletAddress, request);
+    return request;
   }
 
   private analyzeWallet(trade: any, walletStats: any) {

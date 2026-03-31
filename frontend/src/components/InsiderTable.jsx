@@ -68,7 +68,6 @@ function InsiderTable({ alerts }) {
         <h2>Recent Insider Alerts</h2>
         <div className="table-controls">
           <button className="view-btn active">📊 Table View</button>
-          <button className="view-btn">🎴 Card View</button>
         </div>
       </div>
 
@@ -88,10 +87,7 @@ function InsiderTable({ alerts }) {
                 <th>Market</th>
                 <th>Time</th>
                 <th>Price</th>
-                <th>Entry</th>
-                <th>Avg</th>
                 <th>Market Trades</th>
-                <th>Market Volume</th>
                 <th>Wallet Age</th>
                 <th>wc/tx</th>
                 <th>Radar Score</th>
@@ -152,16 +148,7 @@ function InsiderTable({ alerts }) {
                   <td className="price-cell">
                     {alert.price ? Number(alert.price).toFixed(2) : "-"}
                   </td>
-                  <td className="entry-cell">
-                    {alert.price ? Number(alert.price).toFixed(2) : "-"}
-                  </td>
-                  <td className="avg-cell">
-                    {alert.price ? Number(alert.price).toFixed(2) : "-"}
-                  </td>
                   <td className="trades-cell">{alert.totalMarkets}</td>
-                  <td className="volume-cell">
-                    {formatCurrency(Number(alert.tradeSize))}
-                  </td>
                   <td className="conc-cell">
                     {formatWalletAge(alert.walletAge)}
                   </td>
